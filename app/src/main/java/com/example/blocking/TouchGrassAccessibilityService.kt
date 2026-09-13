@@ -38,17 +38,14 @@ class TouchGrassAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             val settings = app.preferencesManager.settingsFlow.firstOrNull() ?: return@launch
             if (!settings.strictLockEnabled) return@launch
+            if (bypassManager.isGlobalActive()) return@launch
 
             val totalMinutes = getTodayTotalForegroundMinutes()
             val limitReached = totalMinutes >= settings.globalDailyLimitMinutes
-            if (!settings.globalLockActive && limitReached) {
-                app.preferencesManager.setGlobalLockActive(true)
-            }
+            if (!settings.globalLockActive && limitReached) app.preferencesManager.setGlobalLockActive(true)
 
             val locked = settings.globalLockActive || limitReached
-            if (!locked) return@launch
-
-            if (bypassManager.isActive(packageName)) return@launch
+            if (!locked || bypassManager.isActive(packageName)) return@launch
 
             val now = System.currentTimeMillis()
             if (now - lastInterventionAt < 1_500L) return@launch
@@ -68,14 +65,10 @@ class TouchGrassAccessibilityService : AccessibilityService() {
     private fun getTodayTotalForegroundMinutes(): Int {
         val manager = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return 0
         val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
         }
         val stats = manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, calendar.timeInMillis, System.currentTimeMillis()) ?: return 0
-        val totalMillis = stats.filter { it.packageName != applicationContext.packageName }.sumOf { it.totalTimeInForeground }
-        return (totalMillis / 60_000L).toInt()
+        return (stats.filter { it.packageName != applicationContext.packageName }.sumOf { it.totalTimeInForeground } / 60_000L).toInt()
     }
 
     private fun isAllowedCallPackage(packageName: String): Boolean {
