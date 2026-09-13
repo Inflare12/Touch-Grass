@@ -9,6 +9,7 @@ import com.example.TouchGrassApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -47,8 +48,6 @@ class TouchGrassAccessibilityService : AccessibilityService() {
             val locked = settings.globalLockActive || limitReached
             if (!locked) return@launch
 
-            // A rewarded-ad bypass is intentionally per-app in legacy mode. In strict global
-            // mode it is not treated as a universal unlock, preventing app hopping as a loophole.
             if (bypassManager.isActive(packageName)) return@launch
 
             val now = System.currentTimeMillis()
@@ -75,8 +74,7 @@ class TouchGrassAccessibilityService : AccessibilityService() {
             set(Calendar.MILLISECOND, 0)
         }
         val stats = manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, calendar.timeInMillis, System.currentTimeMillis()) ?: return 0
-        val totalMillis = stats.filter { it.packageName != applicationContext.packageName }
-            .sumOf { it.totalTimeInForeground }
+        val totalMillis = stats.filter { it.packageName != applicationContext.packageName }.sumOf { it.totalTimeInForeground }
         return (totalMillis / 60_000L).toInt()
     }
 
