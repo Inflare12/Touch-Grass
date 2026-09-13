@@ -8,32 +8,31 @@ import android.os.Build
 import com.example.data.database.AppDatabase
 import com.example.data.preferences.PreferencesManager
 import com.example.data.repository.TouchGrassRepository
+import com.google.android.gms.ads.MobileAds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class TouchGrassApp : Application() {
-
     lateinit var database: AppDatabase
         private set
-
     lateinit var repository: TouchGrassRepository
         private set
-
     lateinit var preferencesManager: PreferencesManager
         private set
 
     override fun onCreate() {
         super.onCreate()
         instance = this
-
         database = AppDatabase.getDatabase(this)
         repository = TouchGrassRepository(database)
         preferencesManager = PreferencesManager(this)
-
         createNotificationChannels()
 
-        // Seed initial badges asynchronously
+        // The SDK is initialized once at app startup. Rewarded ads use Google's test
+        // unit until a production AdMob unit is configured before release.
+        MobileAds.initialize(this)
+
         CoroutineScope(Dispatchers.IO).launch {
             repository.initializeBadges()
         }
@@ -49,7 +48,6 @@ class TouchGrassApp : Application() {
                 description = getString(R.string.notification_channel_desc)
                 enableVibration(true)
             }
-
             val monitorChannel = NotificationChannel(
                 CHANNEL_MONITOR_ID,
                 getString(R.string.monitoring_service_channel_name),
@@ -58,7 +56,6 @@ class TouchGrassApp : Application() {
                 description = getString(R.string.monitoring_service_channel_desc)
                 setShowBadge(false)
             }
-
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(alertChannel)
             notificationManager.createNotificationChannel(monitorChannel)
@@ -68,7 +65,6 @@ class TouchGrassApp : Application() {
     companion object {
         const val CHANNEL_ALERTS_ID = "touch_grass_alerts_channel"
         const val CHANNEL_MONITOR_ID = "touch_grass_monitor_channel"
-
         lateinit var instance: TouchGrassApp
             private set
     }
