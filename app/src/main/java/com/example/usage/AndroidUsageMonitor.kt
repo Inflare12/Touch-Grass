@@ -46,14 +46,15 @@ class AndroidUsageMonitor(
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
 
+    private fun queryTodayStats() = usageStatsManager?.queryUsageStats(
+        UsageStatsManager.INTERVAL_DAILY,
+        getStartOfDayMillis(),
+        System.currentTimeMillis()
+    ) ?: emptyList()
+
     override suspend fun getTodayTotalScreenTimeMillis(): Long = withContext(Dispatchers.IO) {
         if (!hasUsageStatsPermission() || usageStatsManager == null) return@withContext 0L
-        val stats = usageStatsManager.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY,
-            getStartOfDayMillis(),
-            System.currentTimeMillis()
-        ) ?: emptyList()
-        stats.sumOf { it.totalTimeInForeground }
+        queryTodayStats().sumOf { it.totalTimeInForeground }
     }
 
     override suspend fun getInstalledInteractiveApps(): List<AppUsageInfo> = withContext(Dispatchers.IO) {
@@ -71,7 +72,6 @@ class AndroidUsageMonitor(
                 appName = resolveInfo.loadLabel(pm).toString(),
                 dailyUsageMillis = 0L,
                 dailyLimitMinutes = 30,
-                // Do not silently monitor or block any app. The user must opt in.
                 isMonitored = false,
                 icon = resolveInfo.loadIcon(pm)
             )
@@ -84,14 +84,11 @@ class AndroidUsageMonitor(
         val usageMap = mutableMapOf<String, Long>()
 
         if (hasUsageStatsPermission() && usageStatsManager != null) {
-            val stats = usageStatsManager.queryUsageStats(
-                UsageStatsManager.INTERVAL_DAILY,
-                getStartOfDayMillis(),
-                System.currentTimeMillis()
-            ) ?: emptyList()
-            for (stat in stats) {
+            // Android may return multiple usage buckets for the same package. Summing avoids
+            // under-reporting usage when a package has several buckets during the day.
+            for (stat in queryTodayStats()) {
                 if (stat.totalTimeInForeground > 0) {
-                    usageMap[stat.packageName] = maxOf(usageMap[stat.packageName] ?: 0L, stat.totalTimeInForeground)
+                    usageMap[stat.packageName] = (usageMap[stat.packageName] ?: 0L) + stat.totalTimeInForeground
                 }
             }
         }
