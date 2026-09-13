@@ -2,30 +2,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Normal permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-
-    <!-- Camera for on-device live grass touch verification -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
-
-    <!-- Protected permission: legitimate usage statistics to monitor scrolling apps -->
-    <uses-permission
-        android:name="android.permission.PACKAGE_USAGE_STATS"
-        tools:ignore="ProtectedPermissions" />
-
-    <!-- Optional permission: display full-screen intervention overlay over blocked apps -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!-- Query packages to let user pick from their installed social/scrolling apps -->
-    <uses-permission
-        android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
 
     <application
         android:name=".TouchGrassApp"
@@ -38,7 +25,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication">
 
-        <!-- Main Launcher Activity -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="@string/admob_app_id" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -51,7 +41,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Intervention Activity: displayed when user hits their scrolling limit -->
         <activity
             android:name=".blocking.InterventionActivity"
             android:exported="false"
@@ -59,7 +48,6 @@
             android:showOnLockScreen="true"
             android:theme="@style/Theme.MyApplication" />
 
-        <!-- Foreground Monitoring Service (runs efficiently when enabled) -->
         <service
             android:name=".blocking.TouchGrassMonitoringService"
             android:enabled="true"
@@ -70,7 +58,6 @@
                 android:value="Screen-time monitoring and real-time intervention service" />
         </service>
 
-        <!-- Accessibility Service for real-time app intervention detection (optional, user-activated) -->
         <service
             android:name=".blocking.TouchGrassAccessibilityService"
             android:enabled="true"
@@ -84,5 +71,4 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
     </application>
-
 </manifest>
