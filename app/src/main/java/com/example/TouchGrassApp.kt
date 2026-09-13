@@ -29,9 +29,11 @@ class TouchGrassApp : Application() {
         preferencesManager = PreferencesManager(this)
         createNotificationChannels()
 
-        // The SDK is initialized once at app startup. Rewarded ads use Google's test
-        // unit until a production AdMob unit is configured before release.
-        MobileAds.initialize(this)
+        // Pre-create WebView cache directories to prevent Chromium disk cache warnings
+        try {
+            java.io.File(cacheDir, "WebView/Default/HTTP Cache/Code Cache/js").mkdirs()
+            java.io.File(cacheDir, "WebView/Default/HTTP Cache/Code Cache/wasm").mkdirs()
+        } catch (_: Throwable) {}
 
         CoroutineScope(Dispatchers.IO).launch {
             repository.initializeBadges()

@@ -6,6 +6,7 @@ import android.util.Log
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.OnUserEarnedRewardListener
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
@@ -24,6 +25,9 @@ class RewardedAdManager(private val context: Context) : AdManager {
     private fun load() {
         if (loading || rewardedAd != null) return
         loading = true
+        try {
+            MobileAds.initialize(context)
+        } catch (_: Throwable) {}
         RewardedAd.load(
             context,
             TEST_REWARDED_AD_UNIT_ID,

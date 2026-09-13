@@ -120,13 +120,13 @@ fun HomeScreen(viewModel: TouchGrassViewModel, onNavigateToChallenge: () -> Unit
             item {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        MetricStatCard(Modifier.weight(1f), "Grass Streak", "${state.streak.currentStreak} days", "🔥", onNavigateToStats)
-                        MetricStatCard(Modifier.weight(1f), "Challenges", "${state.streak.totalChallengesCompleted}", "🌱", onNavigateToStats)
+                        MetricStatCard(modifier = Modifier.weight(1f), title = "Grass Streak", value = "${state.streak.currentStreak} days", icon = "🔥", onClick = onNavigateToStats)
+                        MetricStatCard(modifier = Modifier.weight(1f), title = "Challenges", value = "${state.streak.totalChallengesCompleted}", icon = "🌱", onClick = onNavigateToStats)
                     }
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        MetricStatCard(Modifier.weight(1f), "Bypasses Used", "${state.streak.totalBypassesUsed}", "📺", onNavigateToStats)
-                        MetricStatCard(Modifier.weight(1f), "Grass Touches", "${state.streak.grassTouchedTodayCount}", "🖐️", onNavigateToStats)
+                        MetricStatCard(modifier = Modifier.weight(1f), title = "Bypasses Used", value = "${state.streak.totalBypassesUsed}", icon = "📺", onClick = onNavigateToStats)
+                        MetricStatCard(modifier = Modifier.weight(1f), title = "Grass Touches", value = "${state.streak.grassTouchedTodayCount}", icon = "🖐️", onClick = onNavigateToStats)
                     }
                 }
             }
