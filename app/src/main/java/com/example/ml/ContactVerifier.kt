@@ -1,28 +1,33 @@
 package com.example.ml
 
 import com.example.domain.model.VerificationState
-import com.example.utils.FunnyQuotes
 
+/**
+ * Conservative temporal verifier. The current local vision implementation is heuristic,
+ * so verification requires multiple independent signals instead of trusting one frame.
+ */
 class ContactVerifier(
     private val requiredHoldSeconds: Int = 3
 ) {
-
     var currentState: VerificationState = VerificationState.Idle
         private set
-
     var cheatAttempts: Int = 0
         private set
 
-    private var holdStartTimeMillis: Long = 0L
-    private var verificationStartTimeMillis: Long = 0L
+    private var holdStartTimeMillis = 0L
+    private var verificationStartTimeMillis = 0L
+    private var liveFrames = 0
+    private var grassFrames = 0
+    private var handFrames = 0
+    private var approachFrames = 0
 
-    var isOutdoorPassed: Boolean = false
+    var isOutdoorPassed = false
         private set
-    var isGrassPassed: Boolean = false
+    var isGrassPassed = false
         private set
-    var isHandPassed: Boolean = false
+    var isHandPassed = false
         private set
-    var isContactPassed: Boolean = false
+    var isContactPassed = false
         private set
 
     fun reset() {
@@ -32,11 +37,17 @@ class ContactVerifier(
         isHandPassed = false
         isContactPassed = false
         holdStartTimeMillis = 0L
-        verificationStartTimeMillis = System.currentTimeMillis()
+        verificationStartTimeMillis = 0L
+        liveFrames = 0
+        grassFrames = 0
+        handFrames = 0
+        approachFrames = 0
+        cheatAttempts = 0
     }
 
     fun start() {
         reset()
+        verificationStartTimeMillis = System.currentTimeMillis()
         currentState = VerificationState.LiveCamera
     }
 
@@ -45,135 +56,109 @@ class ContactVerifier(
         handResult: HandDetectionResult,
         livenessResult: LivenessResult
     ): VerificationState {
-        // If already verified, stay verified
-        if (currentState is VerificationState.Verified) {
-            return currentState
-        }
+        if (currentState is VerificationState.Verified) return currentState
 
-        // 1. Anti-cheat check
-        if (livenessResult.isStaticPhoto) {
+        if (livenessResult.isStaticPhoto || livenessResult.isScreenReplay) {
             cheatAttempts++
-            currentState = VerificationState.CheatingDetected("❌ Live environment required. Photos don't count.")
+            holdStartTimeMillis = 0L
+            currentState = VerificationState.CheatingDetected(
+                livenessResult.warningMessage ?: "❌ LIVE ENVIRONMENT REQUIRED."
+            )
             return currentState
         }
 
         if (grassResult.isArtificialTurf) {
             cheatAttempts++
-            currentState = VerificationState.CheatingDetected("❌ That appears to be artificial turf. Find real soil!")
+            currentState = VerificationState.CheatingDetected("❌ Artificial grass detected. Find real grass!")
             return currentState
         }
 
         if (grassResult.isTreeCanopy) {
             cheatAttempts++
-            currentState = VerificationState.CheatingDetected("🌳 Tree detected. That's a tree, not grass!")
+            currentState = VerificationState.CheatingDetected("🌳 That's a tree. Point down at grass!")
             return currentState
         }
 
-        // 2. Check Liveness / Outdoor environment
-        if (livenessResult.isLiveEnvironment) {
-            isOutdoorPassed = true
+        if (livenessResult.isLiveEnvironment) liveFrames++
+        if (grassResult.isGrassDetected) grassFrames++ else grassFrames = (grassFrames - 1).coerceAtLeast(0)
+        if (handResult.isHandDetected) handFrames++ else handFrames = (handFrames - 1).coerceAtLeast(0)
+
+        // Require temporal confirmation, not a single lucky frame.
+        if (liveFrames >= 6) isOutdoorPassed = true
+        if (grassFrames >= 4 && grassResult.bottomGreenRatio >= 0.08f) isGrassPassed = true
+        if (handFrames >= 3) isHandPassed = true
+
+        val hasGroundEvidence = grassResult.isGrassDetected && grassResult.bottomGreenRatio >= 0.08f
+        val isHandCloseToGrass = isGrassPassed && isHandPassed && handResult.handCentroidY > 0.45f
+        val isContact = isGrassPassed && isHandPassed &&
+            hasGroundEvidence &&
+            handResult.handCentroidY > 0.58f &&
+            handResult.isMovingDownTowardsGrass
+
+        if (handResult.isMovingDownTowardsGrass) approachFrames++ else approachFrames = (approachFrames - 1).coerceAtLeast(0)
+        val confirmedApproach = approachFrames >= 2
+        val confirmedContact = isContact && confirmedApproach && livenessResult.isLiveEnvironment
+        if (confirmedContact) isContactPassed = true
+
+        fun beginHold() {
+            if (holdStartTimeMillis == 0L) holdStartTimeMillis = System.currentTimeMillis()
         }
 
-        // 3. Grass detection
-        if (grassResult.isGrassDetected) {
-            isGrassPassed = true
+        fun holdingState(): VerificationState {
+            val elapsed = System.currentTimeMillis() - holdStartTimeMillis
+            val total = requiredHoldSeconds.coerceAtLeast(1) * 1000L
+            if (elapsed >= total) {
+                val duration = ((System.currentTimeMillis() - verificationStartTimeMillis) / 1000L)
+                    .toInt().coerceAtLeast(1)
+                return VerificationState.Verified(duration)
+            }
+            val remaining = kotlin.math.ceil((total - elapsed) / 1000.0).toInt().coerceAtLeast(1)
+            val progress = (elapsed.toFloat() / total).coerceIn(0f, 1f)
+            return VerificationState.Holding(remaining, progress)
         }
 
-        // 4. Hand detection
-        if (handResult.isHandDetected) {
-            isHandPassed = true
-        }
-
-        // 5. Hand approaching vs contact
-        val isHandCloseToGrass = isGrassPassed && isHandPassed && (handResult.handCentroidY > 0.45f)
-        val isContact = isGrassPassed && isHandPassed && (handResult.handCentroidY > 0.58f)
-
-        if (isContact) {
-            isContactPassed = true
-        }
-
-        // State Machine Transition Logic
         when (currentState) {
-            is VerificationState.Idle -> {
-                currentState = VerificationState.LiveCamera
-            }
-            is VerificationState.LiveCamera -> {
-                if (isOutdoorPassed) {
-                    currentState = VerificationState.OutdoorDetected
-                }
-            }
-            is VerificationState.OutdoorDetected -> {
-                if (isGrassPassed) {
-                    currentState = VerificationState.GrassDetected
-                }
-            }
-            is VerificationState.GrassDetected -> {
-                if (isHandPassed) {
-                    currentState = VerificationState.HandDetected
-                }
-            }
-            is VerificationState.HandDetected -> {
-                if (isContact) {
+            VerificationState.Idle -> currentState = VerificationState.LiveCamera
+            VerificationState.LiveCamera -> if (isOutdoorPassed) currentState = VerificationState.OutdoorDetected
+            VerificationState.OutdoorDetected -> if (isGrassPassed) currentState = VerificationState.GrassDetected
+            VerificationState.GrassDetected -> if (isHandPassed) currentState = VerificationState.HandDetected
+            VerificationState.HandDetected -> when {
+                confirmedContact -> {
+                    beginHold()
                     currentState = VerificationState.ContactDetected
-                    holdStartTimeMillis = System.currentTimeMillis()
-                } else if (isHandCloseToGrass) {
-                    currentState = VerificationState.HandApproaching
                 }
+                isHandCloseToGrass -> currentState = VerificationState.HandApproaching
             }
-            is VerificationState.HandApproaching -> {
-                if (isContact) {
+            VerificationState.HandApproaching -> when {
+                confirmedContact -> {
+                    beginHold()
                     currentState = VerificationState.ContactDetected
-                    holdStartTimeMillis = System.currentTimeMillis()
-                } else if (!isHandPassed) {
-                    currentState = VerificationState.GrassDetected
                 }
+                !isHandPassed -> currentState = VerificationState.GrassDetected
             }
-            is VerificationState.ContactDetected -> {
-                if (isContact) {
-                    if (holdStartTimeMillis == 0L) holdStartTimeMillis = System.currentTimeMillis()
-                    val elapsedMillis = System.currentTimeMillis() - holdStartTimeMillis
-                    val totalHoldMillis = requiredHoldSeconds * 1000L
-                    val remainingSeconds = (Math.ceil((totalHoldMillis - elapsedMillis) / 1000.0)).toInt().coerceAtLeast(1)
-                    val progress = (elapsedMillis.toFloat() / totalHoldMillis).coerceIn(0f, 1f)
-
-                    if (elapsedMillis >= totalHoldMillis) {
-                        val durationSeconds = ((System.currentTimeMillis() - verificationStartTimeMillis) / 1000L).toInt().coerceAtLeast(1)
-                        currentState = VerificationState.Verified(durationSeconds)
-                    } else {
-                        currentState = VerificationState.Holding(remainingSeconds, progress)
-                    }
+            VerificationState.ContactDetected, is VerificationState.Holding -> {
+                if (confirmedContact) {
+                    beginHold()
+                    currentState = holdingState()
                 } else {
-                    // Contact broken
                     holdStartTimeMillis = 0L
-                    currentState = VerificationState.HandApproaching
-                }
-            }
-            is VerificationState.Holding -> {
-                if (isContact) {
-                    val elapsedMillis = System.currentTimeMillis() - holdStartTimeMillis
-                    val totalHoldMillis = requiredHoldSeconds * 1000L
-                    val remainingSeconds = (Math.ceil((totalHoldMillis - elapsedMillis) / 1000.0)).toInt().coerceAtLeast(1)
-                    val progress = (elapsedMillis.toFloat() / totalHoldMillis).coerceIn(0f, 1f)
-
-                    if (elapsedMillis >= totalHoldMillis) {
-                        val durationSeconds = ((System.currentTimeMillis() - verificationStartTimeMillis) / 1000L).toInt().coerceAtLeast(1)
-                        currentState = VerificationState.Verified(durationSeconds)
-                    } else {
-                        currentState = VerificationState.Holding(remainingSeconds, progress)
-                    }
-                } else {
-                    // Contact slipped off
-                    holdStartTimeMillis = 0L
+                    isContactPassed = false
                     currentState = VerificationState.HandApproaching
                 }
             }
             is VerificationState.CheatingDetected -> {
-                // Recover if conditions normalized
-                if (!grassResult.isTreeCanopy && !grassResult.isArtificialTurf && !livenessResult.isStaticPhoto) {
-                    currentState = if (isContact) VerificationState.ContactDetected else VerificationState.GrassDetected
+                if (!grassResult.isArtificialTurf && !grassResult.isTreeCanopy &&
+                    !livenessResult.isStaticPhoto && !livenessResult.isScreenReplay) {
+                    currentState = when {
+                        confirmedContact -> VerificationState.ContactDetected
+                        isHandPassed -> VerificationState.HandApproaching
+                        isGrassPassed -> VerificationState.GrassDetected
+                        isOutdoorPassed -> VerificationState.OutdoorDetected
+                        else -> VerificationState.LiveCamera
+                    }
                 }
             }
-            is VerificationState.Verified -> {}
+            is VerificationState.Verified -> Unit
         }
 
         return currentState
