@@ -48,7 +48,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.MainActivity
 import com.example.TouchGrassApp
-import com.example.ads.RewardedAdManager
 import com.example.ui.theme.GrassGreenPrimary
 import com.example.ui.theme.TouchGrassTheme
 import com.example.utils.FunnyQuotes
@@ -56,14 +55,12 @@ import com.example.utils.SoundVibrationHelper
 import kotlinx.coroutines.launch
 
 class InterventionActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
         val targetPackage = intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: ""
         val targetAppName = intent.getStringExtra(EXTRA_APP_NAME) ?: "Scrolling App"
-        val scrollingMinutes = intent.getIntExtra(EXTRA_SCROLLING_MINUTES, 45)
+        val scrollingMinutes = intent.getIntExtra(EXTRA_SCROLLING_MINUTES, 0)
 
         setContent {
             TouchGrassTheme(darkTheme = true) {
@@ -71,28 +68,26 @@ class InterventionActivity : ComponentActivity() {
                     appName = targetAppName,
                     scrollingMinutes = scrollingMinutes,
                     onStartChallenge = {
-                        // Open MainActivity with request to launch challenge immediately
-                        val mainIntent = Intent(this, MainActivity::class.java).apply {
+                        startActivity(Intent(this, MainActivity::class.java).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                             putExtra(MainActivity.EXTRA_START_CHALLENGE, true)
                             putExtra(EXTRA_PACKAGE_NAME, targetPackage)
                             putExtra(EXTRA_APP_NAME, targetAppName)
-                        }
-                        startActivity(mainIntent)
+                        })
                         finish()
                     },
                     onWatchAdBypass = {
-                        // Bypass allowed
-                        val soundHelper = SoundVibrationHelper(this)
-                        soundHelper.vibrateSuccess()
+                        SoundVibrationHelper(this).apply {
+                            vibrateSuccess()
+                            release()
+                        }
                         finish()
                     },
                     onGoHome = {
-                        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+                        startActivity(Intent(Intent.ACTION_MAIN).apply {
                             addCategory(Intent.CATEGORY_HOME)
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        }
-                        startActivity(homeIntent)
+                        })
                         finish()
                     }
                 )
@@ -108,190 +103,50 @@ class InterventionActivity : ComponentActivity() {
 }
 
 @Composable
-fun InterventionContent(
-    appName: String,
-    scrollingMinutes: Int,
-    onStartChallenge: () -> Unit,
-    onWatchAdBypass: () -> Unit,
-    onGoHome: () -> Unit
-) {
+fun InterventionContent(appName: String, scrollingMinutes: Int, onStartChallenge: () -> Unit, onWatchAdBypass: () -> Unit, onGoHome: () -> Unit) {
     val coroutineScope = rememberCoroutineScope()
     var isShowingAdDialog by remember { mutableStateOf(false) }
-    var adStatusText by remember { mutableStateOf("") }
-    var adTimerProgress by remember { mutableStateOf(1f) }
     val funnyQuote = remember { FunnyQuotes.getRandomBlockedQuote() }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0xFF09140B),
-                        Color(0xFF0E2214),
-                        Color(0xFF050B06)
-                    )
-                )
-            )
-            .padding(24.dp)
-            .testTag("intervention_screen"),
+        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF09140B), Color(0xFF0E2214), Color(0xFF050B06)))).padding(24.dp).testTag("intervention_screen"),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            // Lock Badge
-            Box(
-                modifier = Modifier
-                    .size(88.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF2E7D32).copy(alpha = 0.25f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = "Screen Lock",
-                    tint = Color(0xFF81C784),
-                    modifier = Modifier.size(44.dp)
-                )
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Box(Modifier.size(88.dp).clip(CircleShape).background(Color(0xFF2E7D32).copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Lock, contentDescription = "Screen Lock", tint = Color(0xFF81C784), modifier = Modifier.size(44.dp))
             }
+            Spacer(Modifier.height(24.dp))
+            Text("🔒 TOUCH GRASS", fontSize = 28.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp, color = Color.White, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(12.dp))
+            Text("You've been on $appName for $scrollingMinutes minutes.", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFA5D6A7), textAlign = TextAlign.Center)
+            Text("Your phone needs a break.", fontSize = 15.sp, color = Color(0xFFC8E6C9).copy(alpha = 0.8f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+            Spacer(Modifier.height(20.dp))
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = "🔒 TOUCH GRASS",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.5.sp,
-                color = Color.White,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "You've been on $appName for $scrollingMinutes minutes.",
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFFA5D6A7),
-                textAlign = TextAlign.Center
-            )
-
-            Text(
-                text = "Your phone needs a break.",
-                fontSize = 15.sp,
-                color = Color(0xFFC8E6C9).copy(alpha = 0.8f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp)
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Humorous Quote Card
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF15281A)),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "\"$funnyQuote\"",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFE8F5E9),
-                        textAlign = TextAlign.Center,
-                        fontWeight = FontWeight.SemiBold
-                    )
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF15281A)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("\"$funnyQuote\"", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFE8F5E9), textAlign = TextAlign.Center, fontWeight = FontWeight.SemiBold)
                 }
             }
+            Spacer(Modifier.height(32.dp))
 
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Primary Action: Touch Grass Now
-            Button(
-                onClick = onStartChallenge,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .testTag("intervention_touch_grass_button"),
-                colors = ButtonDefaults.buttonColors(containerColor = GrassGreenPrimary),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Spa,
-                        contentDescription = null,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(modifier = Modifier.size(8.dp))
-                    Text(
-                        text = "🌱 Touch Grass Now",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+            Button(onClick = onStartChallenge, Modifier.fillMaxWidth().height(56.dp).testTag("intervention_touch_grass_button"), colors = ButtonDefaults.buttonColors(containerColor = GrassGreenPrimary), shape = RoundedCornerShape(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    Icon(Icons.Default.Spa, contentDescription = null, modifier = Modifier.size(22.dp)); Spacer(Modifier.size(8.dp)); Text("🌱 Touch Grass Now", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Secondary Action: Watch ad to bypass
-            OutlinedButton(
-                onClick = {
-                    isShowingAdDialog = true
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .testTag("intervention_bypass_button"),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayCircleOutline,
-                        contentDescription = null,
-                        tint = Color(0xFFB0BEC5),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.size(8.dp))
-                    Text(
-                        text = "📺 Watch an ad to bypass",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFFECEFF1)
-                    )
+            Spacer(Modifier.height(14.dp))
+            OutlinedButton(onClick = { isShowingAdDialog = true }, Modifier.fillMaxWidth().height(52.dp).testTag("intervention_bypass_button"), shape = RoundedCornerShape(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    Icon(Icons.Default.PlayCircleOutline, contentDescription = null, tint = Color(0xFFB0BEC5), modifier = Modifier.size(20.dp)); Spacer(Modifier.size(8.dp)); Text("📺 Watch an ad to bypass", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFECEFF1))
                 }
             }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Put phone away / Exit to home
-            OutlinedButton(
-                onClick = onGoHome,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .testTag("intervention_put_phone_down_button"),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Text(
-                    text = "Put phone down & walk outside",
-                    fontSize = 13.sp,
-                    color = Color(0xFF81C784)
-                )
+            Spacer(Modifier.height(14.dp))
+            OutlinedButton(onClick = onGoHome, Modifier.fillMaxWidth().height(48.dp).testTag("intervention_put_phone_down_button"), shape = RoundedCornerShape(16.dp)) {
+                Text("Put phone down & walk outside", fontSize = 13.sp, color = Color(0xFF81C784))
             }
         }
 
-        // Rewarded Ad Simulation / Player Dialog
         if (isShowingAdDialog) {
             com.example.ads.RewardedAdDialog(
                 appName = appName,
