@@ -103,7 +103,14 @@ class InterventionActivity : ComponentActivity() {
 }
 
 @Composable
-fun InterventionContent(appName: String, scrollingMinutes: Int, onStartChallenge: () -> Unit, onWatchAdBypass: () -> Unit, onGoHome: () -> Unit) {
+fun InterventionContent(
+    appName: String,
+    scrollingMinutes: Int,
+    onStartChallenge: () -> Unit,
+    onWatchAdBypass: () -> Unit,
+    onGoHome: () -> Unit,
+    targetPackage: String = ""
+) {
     val coroutineScope = rememberCoroutineScope()
     var isShowingAdDialog by remember { mutableStateOf(false) }
     val funnyQuote = remember { FunnyQuotes.getRandomBlockedQuote() }
@@ -153,7 +160,11 @@ fun InterventionContent(appName: String, scrollingMinutes: Int, onStartChallenge
                 onDismiss = { isShowingAdDialog = false },
                 onRewardEarned = {
                     coroutineScope.launch {
-                        TouchGrassApp.instance.repository.recordAdBypass(targetAppName = appName)
+                        TouchGrassApp.instance.repository.recordAdBypass(
+                            targetAppPackage = targetPackage,
+                            targetAppName = appName
+                        )
+                        AdBypassManager(this@InterventionActivity).grant(targetPackage)
                         isShowingAdDialog = false
                         onWatchAdBypass()
                     }
