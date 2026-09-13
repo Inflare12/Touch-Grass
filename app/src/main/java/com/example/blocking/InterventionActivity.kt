@@ -67,6 +67,7 @@ class InterventionActivity : ComponentActivity() {
                 InterventionContent(
                     appName = targetAppName,
                     scrollingMinutes = scrollingMinutes,
+                    targetPackage = targetPackage,
                     onStartChallenge = {
                         startActivity(Intent(this, MainActivity::class.java).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -106,10 +107,10 @@ class InterventionActivity : ComponentActivity() {
 fun InterventionContent(
     appName: String,
     scrollingMinutes: Int,
+    targetPackage: String,
     onStartChallenge: () -> Unit,
     onWatchAdBypass: () -> Unit,
-    onGoHome: () -> Unit,
-    targetPackage: String = ""
+    onGoHome: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     var isShowingAdDialog by remember { mutableStateOf(false) }
