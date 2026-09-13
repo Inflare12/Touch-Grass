@@ -49,26 +49,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.MainActivity
 import com.example.TouchGrassApp
+import com.example.ads.RewardedAdManager
 import com.example.ui.theme.GrassGreenPrimary
 import com.example.ui.theme.TouchGrassTheme
 import com.example.utils.FunnyQuotes
-import com.example.utils.SoundVibrationHelper
 import kotlinx.coroutines.launch
 
 class InterventionActivity : ComponentActivity() {
+    private lateinit var rewardedAdManager: RewardedAdManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val targetPackage = intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: ""
-        val targetAppName = intent.getStringExtra(EXTRA_APP_NAME) ?: "Scrolling App"
-        val scrollingMinutes = intent.getIntExtra(EXTRA_SCROLLING_MINUTES, 0)
+        rewardedAdManager = RewardedAdManager(this)
 
+        val targetPackage = intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: ""
+        val targetAppName = intent.getStringExtra(EXTRA_APP_NAME) ?: "Your phone"
+        val scrollingMinutes = intent.getIntExtra(EXTRA_SCROLLING_MINUTES, 0)
+        val globalLock = intent.getBooleanExtra(EXTRA_GLOBAL_LOCK, false)
         setContent {
             TouchGrassTheme(darkTheme = true) {
                 InterventionContent(
                     appName = targetAppName,
                     scrollingMinutes = scrollingMinutes,
                     targetPackage = targetPackage,
+                    globalLock = globalLock,
+                    rewardedAdManager = rewardedAdManager,
                     onStartChallenge = {
                         startActivity(Intent(this, MainActivity::class.java).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -78,20 +84,7 @@ class InterventionActivity : ComponentActivity() {
                         })
                         finish()
                     },
-                    onWatchAdBypass = {
-                        SoundVibrationHelper(this).apply {
-                            vibrateSuccess()
-                            release()
-                        }
-                        finish()
-                    },
-                    onGoHome = {
-                        startActivity(Intent(Intent.ACTION_MAIN).apply {
-                            addCategory(Intent.CATEGORY_HOME)
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        })
-                        finish()
-                    }
+                    onWatchAdBypass = { finish() }
                 )
             }
         }
@@ -101,6 +94,7 @@ class InterventionActivity : ComponentActivity() {
         const val EXTRA_PACKAGE_NAME = "extra_package_name"
         const val EXTRA_APP_NAME = "extra_app_name"
         const val EXTRA_SCROLLING_MINUTES = "extra_scrolling_minutes"
+        const val EXTRA_GLOBAL_LOCK = "extra_global_lock"
     }
 }
 
@@ -109,9 +103,10 @@ fun InterventionContent(
     appName: String,
     scrollingMinutes: Int,
     targetPackage: String,
+    globalLock: Boolean = false,
+    rewardedAdManager: RewardedAdManager,
     onStartChallenge: () -> Unit,
-    onWatchAdBypass: () -> Unit,
-    onGoHome: () -> Unit
+    onWatchAdBypass: () -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -119,55 +114,68 @@ fun InterventionContent(
     val funnyQuote = remember { FunnyQuotes.getRandomBlockedQuote() }
 
     Box(
-        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF09140B), Color(0xFF0E2214), Color(0xFF050B06)))).padding(24.dp).testTag("intervention_screen"),
+        Modifier.fillMaxSize()
+            .background(Brush.verticalGradient(listOf(Color(0xFF09140B), Color(0xFF0E2214), Color(0xFF050B06))))
+            .padding(24.dp)
+            .testTag("intervention_screen"),
         contentAlignment = Alignment.Center
     ) {
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
             Box(Modifier.size(88.dp).clip(CircleShape).background(Color(0xFF2E7D32).copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.Lock, contentDescription = "Screen Lock", tint = Color(0xFF81C784), modifier = Modifier.size(44.dp))
             }
             Spacer(Modifier.height(24.dp))
             Text("🔒 TOUCH GRASS", fontSize = 28.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp, color = Color.White, textAlign = TextAlign.Center)
             Spacer(Modifier.height(12.dp))
-            Text("You've been on $appName for $scrollingMinutes minutes.", fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFA5D6A7), textAlign = TextAlign.Center)
-            Text("Your phone needs a break.", fontSize = 15.sp, color = Color(0xFFC8E6C9).copy(alpha = 0.8f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+            Text(
+                if (globalLock) "You've hit your daily screen-time limit." else "You've been on $appName for $scrollingMinutes minutes.",
+                fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Color(0xFFA5D6A7), textAlign = TextAlign.Center
+            )
+            Text("No app hopping. Your phone needs a break. 🌱", fontSize = 15.sp, color = Color(0xFFC8E6C9).copy(alpha = 0.8f), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
             Spacer(Modifier.height(20.dp))
-
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF15281A)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("\"$funnyQuote\"", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFE8F5E9), textAlign = TextAlign.Center, fontWeight = FontWeight.SemiBold)
                 }
             }
             Spacer(Modifier.height(32.dp))
-
             Button(onClick = onStartChallenge, Modifier.fillMaxWidth().height(56.dp).testTag("intervention_touch_grass_button"), colors = ButtonDefaults.buttonColors(containerColor = GrassGreenPrimary), shape = RoundedCornerShape(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Icon(Icons.Default.Spa, contentDescription = null, modifier = Modifier.size(22.dp)); Spacer(Modifier.size(8.dp)); Text("🌱 Touch Grass Now", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.Spa, contentDescription = null, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text("🌱 Touch Grass Now", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(Modifier.height(14.dp))
             OutlinedButton(onClick = { isShowingAdDialog = true }, Modifier.fillMaxWidth().height(52.dp).testTag("intervention_bypass_button"), shape = RoundedCornerShape(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                    Icon(Icons.Default.PlayCircleOutline, contentDescription = null, tint = Color(0xFFB0BEC5), modifier = Modifier.size(20.dp)); Spacer(Modifier.size(8.dp)); Text("📺 Watch an ad to bypass", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFECEFF1))
+                    Icon(Icons.Default.PlayCircleOutline, contentDescription = null, tint = Color(0xFFB0BEC5), modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text("📺 Watch ad → get 10 min", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFECEFF1))
                 }
             }
             Spacer(Modifier.height(14.dp))
-            OutlinedButton(onClick = onGoHome, Modifier.fillMaxWidth().height(48.dp).testTag("intervention_put_phone_down_button"), shape = RoundedCornerShape(16.dp)) {
-                Text("Put phone down & walk outside", fontSize = 13.sp, color = Color(0xFF81C784))
-            }
+            Text("Calls and emergency functions stay available.", fontSize = 12.sp, color = Color(0xFF81C784), textAlign = TextAlign.Center)
         }
-
         if (isShowingAdDialog) {
             com.example.ads.RewardedAdDialog(
-                appName = appName,
+                appName = if (globalLock) "your phone" else appName,
+                adManager = rewardedAdManager,
                 onDismiss = { isShowingAdDialog = false },
                 onRewardEarned = {
                     coroutineScope.launch {
-                        TouchGrassApp.instance.repository.recordAdBypass(
-                            targetAppPackage = targetPackage,
-                            targetAppName = appName
-                        )
-                        AdBypassManager(context).grant(targetPackage)
+                        TouchGrassApp.instance.repository.recordAdBypass(targetAppPackage = targetPackage, targetAppName = appName)
+                        val bypass = AdBypassManager(context)
+                        if (globalLock) {
+                            bypass.grantGlobal()
+                            TouchGrassApp.instance.preferencesManager.clearGlobalLock()
+                        } else {
+                            bypass.grant(targetPackage)
+                        }
                         isShowingAdDialog = false
                         onWatchAdBypass()
                     }
