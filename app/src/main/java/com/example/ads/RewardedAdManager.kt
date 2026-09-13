@@ -16,20 +16,18 @@ class RewardedAdManager(private val context: Context) : AdManager {
     private var rewardedAd: RewardedAd? = null
     private var loading = false
 
-    init {
-        load()
-    }
+    init { load() }
 
     override fun isAdLoaded(): Boolean = rewardedAd != null
+
+    fun activityForShowing(): Activity? = context as? Activity
 
     private fun load() {
         if (loading || rewardedAd != null) return
         loading = true
-        try {
-            MobileAds.initialize(context)
-        } catch (_: Throwable) {}
+        try { MobileAds.initialize(context.applicationContext) } catch (t: Throwable) { Log.w(TAG, "Ad SDK initialization failed", t) }
         RewardedAd.load(
-            context,
+            context.applicationContext,
             TEST_REWARDED_AD_UNIT_ID,
             AdRequest.Builder().build(),
             object : RewardedAdLoadCallback() {
@@ -51,7 +49,7 @@ class RewardedAdManager(private val context: Context) : AdManager {
         onRewardEarned: (rewardAmount: Int) -> Unit,
         onAdClosed: () -> Unit
     ) {
-        val activity = context as? Activity
+        val activity = activityForShowing()
         val ad = rewardedAd
         if (activity == null || ad == null) {
             load()
@@ -72,10 +70,7 @@ class RewardedAdManager(private val context: Context) : AdManager {
                 load()
             }
         }
-
-        ad.show(activity, OnUserEarnedRewardListener { rewardItem ->
-            onRewardEarned(rewardItem.amount)
-        })
+        ad.show(activity, OnUserEarnedRewardListener { rewardItem -> onRewardEarned(rewardItem.amount) })
     }
 
     companion object {
