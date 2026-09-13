@@ -19,11 +19,9 @@ import com.example.usage.AndroidUsageMonitor
 import com.example.utils.FunnyQuotes
 import com.example.utils.SoundVibrationHelper
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class TouchGrassUiState(
@@ -58,17 +56,13 @@ class TouchGrassViewModel(application: Application) : AndroidViewModel(applicati
     private val _uiState = MutableStateFlow(TouchGrassUiState())
     val uiState: StateFlow<TouchGrassUiState> = _uiState.asStateFlow()
 
-    init {
-        loadData()
-        observeStreams()
-    }
+    init { loadData(); observeStreams() }
 
     private fun loadData() {
         viewModelScope.launch {
             refreshPermissions()
             val apps = usageMonitor.getInstalledInteractiveApps()
-            val screenTime = usageMonitor.getTodayTotalScreenTimeMillis()
-            _uiState.value = _uiState.value.copy(allInstalledApps = apps, totalScreenTimeMillis = screenTime)
+            _uiState.value = _uiState.value.copy(allInstalledApps = apps, totalScreenTimeMillis = usageMonitor.getTodayTotalScreenTimeMillis())
         }
     }
 
@@ -88,11 +82,7 @@ class TouchGrassViewModel(application: Application) : AndroidViewModel(applicati
         }
         viewModelScope.launch {
             usageMonitor.observeMonitoredAppsWithUsage().collect { monitoredList ->
-                _uiState.value = _uiState.value.copy(
-                    monitoredApps = monitoredList.filter { it.isMonitored },
-                    allInstalledApps = monitoredList,
-                    totalScreenTimeMillis = usageMonitor.getTodayTotalScreenTimeMillis()
-                )
+                _uiState.value = _uiState.value.copy(monitoredApps = monitoredList.filter { it.isMonitored }, allInstalledApps = monitoredList, totalScreenTimeMillis = usageMonitor.getTodayTotalScreenTimeMillis())
             }
         }
     }
@@ -114,12 +104,7 @@ class TouchGrassViewModel(application: Application) : AndroidViewModel(applicati
     fun toggleSoundVibration(enabled: Boolean) = viewModelScope.launch { preferences.setSoundVibrationEnabled(enabled) }
     fun toggleNotifications(enabled: Boolean) = viewModelScope.launch { preferences.setNotificationsEnabled(enabled) }
     fun toggleMonitoringService(enable: Boolean) { if (enable) blockingManager.startMonitoringService() else blockingManager.stopMonitoringService() }
-
-    fun resetStatistics() = viewModelScope.launch {
-        repository.resetAllData()
-        preferences.resetAllSettings()
-        loadData()
-    }
+    fun resetStatistics() = viewModelScope.launch { repository.resetAllData(); preferences.resetAllSettings(); loadData() }
 
     fun startChallengeSession() {
         contactVerifier.setRequiredHoldSeconds(_uiState.value.settings.holdDurationSeconds)
@@ -130,13 +115,7 @@ class TouchGrassViewModel(application: Application) : AndroidViewModel(applicati
     fun onFrameProcessed(grass: GrassDetectionResult, hand: HandDetectionResult, liveness: LivenessResult) {
         val oldState = _uiState.value.currentVerificationState
         val state = contactVerifier.currentState
-        _uiState.value = _uiState.value.copy(
-            currentVerificationState = state,
-            grassDetectionResult = grass,
-            handDetectionResult = hand,
-            livenessResult = liveness
-        )
-
+        _uiState.value = _uiState.value.copy(currentVerificationState = state, grassDetectionResult = grass, handDetectionResult = hand, livenessResult = liveness)
         if (_uiState.value.settings.soundVibrationEnabled) {
             when {
                 state is VerificationState.Holding && oldState !is VerificationState.Holding -> soundHelper.vibrateCountdown()
@@ -146,18 +125,15 @@ class TouchGrassViewModel(application: Application) : AndroidViewModel(applicati
                 state is VerificationState.GrassDetected && oldState !is VerificationState.GrassDetected -> soundHelper.vibrateStep()
             }
         }
-
         if (state is VerificationState.Verified && oldState !is VerificationState.Verified) onChallengeVerified(state.durationSeconds)
     }
 
     private fun onChallengeVerified(durationSeconds: Int) = viewModelScope.launch {
         if (_uiState.value.settings.soundVibrationEnabled) soundHelper.vibrateSuccess()
+        preferences.clearGlobalLock()
         val record = repository.recordGrassTouch(durationSeconds, cheatAttempts = contactVerifier.cheatAttempts)
         _uiState.value = _uiState.value.copy(lastCompletedRecord = record, funnySuccessQuote = FunnyQuotes.getRandomSuccessQuote())
     }
 
-    override fun onCleared() {
-        soundHelper.release()
-        super.onCleared()
-    }
+    override fun onCleared() { soundHelper.release(); super.onCleared() }
 }
