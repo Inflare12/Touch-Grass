@@ -14,13 +14,19 @@ import java.util.Calendar
 
 /**
  * Watches foreground app changes only after the user has explicitly enabled this service.
- * The service never blocks a monitored app merely because it was opened: current-day
- * UsageStats must show that the configured limit has actually been exceeded.
+ * A monitored app is interrupted only when its current-day foreground usage has reached
+ * the configured limit and it does not have an active rewarded-ad grace period.
  */
 class TouchGrassAccessibilityService : AccessibilityService() {
     private val serviceJob = Job()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
+    private lateinit var bypassManager: AdBypassManager
     private val lastInterventionByPackage = mutableMapOf<String, Long>()
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        bypassManager = AdBypassManager(applicationContext)
+    }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
@@ -31,6 +37,7 @@ class TouchGrassAccessibilityService : AccessibilityService() {
             val app = application as? TouchGrassApp ?: return@launch
             val limit = app.repository.getAppUsageLimit(packageName) ?: return@launch
             if (!limit.isMonitored || limit.customLimitMinutes <= 0) return@launch
+            if (bypassManager.isActive(packageName)) return@launch
 
             val usageMinutes = getTodayForegroundMinutes(packageName)
             if (usageMinutes < limit.customLimitMinutes) return@launch
