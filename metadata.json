@@ -1,0 +1,6 @@
+{
+  "name": "Touch Grass",
+  "description": "A screen-time intervention app that challenges you to go outside and touch real grass.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

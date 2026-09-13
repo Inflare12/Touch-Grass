@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Touch Grass</string>
+    <string name="accessibility_service_description">Used strictly to detect when designated scrolling apps (like social media) are opened after daily limits are reached, to display the Touch Grass intervention.</string>
+    <string name="notification_channel_name">Touch Grass Alerts</string>
+    <string name="notification_channel_desc">Notifications when screen time limits are reached and streak reminders</string>
+    <string name="monitoring_service_channel_name">Touch Grass Monitor</string>
+    <string name="monitoring_service_channel_desc">Screen-time protection service</string>
+</resources>
