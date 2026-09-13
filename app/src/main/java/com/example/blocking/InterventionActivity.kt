@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -112,6 +113,7 @@ fun InterventionContent(
     onWatchAdBypass: () -> Unit,
     onGoHome: () -> Unit
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var isShowingAdDialog by remember { mutableStateOf(false) }
     val funnyQuote = remember { FunnyQuotes.getRandomBlockedQuote() }
@@ -165,7 +167,7 @@ fun InterventionContent(
                             targetAppPackage = targetPackage,
                             targetAppName = appName
                         )
-                        AdBypassManager(this@InterventionActivity).grant(targetPackage)
+                        AdBypassManager(context).grant(targetPackage)
                         isShowingAdDialog = false
                         onWatchAdBypass()
                     }
